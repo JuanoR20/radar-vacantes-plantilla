@@ -1,0 +1,168 @@
+# ============================================================================
+#  PLANTILLA — copia este archivo sobre config.yaml y edítalo.
+#
+#      cp config.ejemplo.yaml config.yaml
+#
+#  Solo hay que tocar tres cosas: tu usuario de GitHub, tus empresas y tus
+#  filtros. El código no se toca nunca.
+# ============================================================================
+
+empresas:
+
+  # ---- CÓMO AVERIGUAR ESTAS LÍNEAS -----------------------------------------
+  #
+  # No las adivines. Pásale al radar la página de carreras de la empresa:
+  #
+  #     python3 radar.py --descubrir https://www.empresa.com/careers
+  #
+  # Te dice qué plataforma usa, verifica que responda e imprime dos títulos de
+  # ejemplo. LEE ESOS TÍTULOS: si no parecen de esa empresa, el identificador
+  # está mal. Un identificador equivocado puede dar con el board de OTRA
+  # empresa y verse perfectamente sano.
+  #
+  # Si la empresa no expone datos legibles, el comando te lo dice y te ahorra
+  # la tarde. Para esas, suscríbete a la alerta de su propio portal.
+  # --------------------------------------------------------------------------
+
+  - id: monzo                 # identificador interno; no lo cambies después
+    nombre: Monzo             # el nombre que verás en el correo
+    plataforma: greenhouse
+    board: monzo
+    activa: true
+
+  - id: airwallex
+    nombre: Airwallex
+    plataforma: ashby
+    board: airwallex
+    activa: true
+
+  # Ejemplo de una plataforma con más datos (lo imprime --descubrir):
+  # - id: remitly
+  #   nombre: Remitly
+  #   plataforma: workday
+  #   tenant: remitly
+  #   pod: wd5
+  #   site: Remitly_Careers
+  #   activa: true
+
+  # Si un board existe pero hoy no tiene ninguna vacante, añádele
+  # `permitir_vacia: true` para que no avise "0 puestos" en cada corrida.
+
+
+# ============================================================================
+#  FILTROS — se aplican solo al armar el correo, nunca al guardar.
+#  Cambiarlos es gratis: no genera avisos retroactivos de puestos viejos.
+#  Una lista vacía ([]) significa "no filtrar por esto".
+# ============================================================================
+
+filtros:
+
+  # UBICACIONES — coincidencia por PALABRA COMPLETA.
+  # Por eso "uk" no coincide con "Ukraine". Adapta esto a tu país.
+  ubicaciones_incluir:
+    - united kingdom
+    - uk
+    - gb
+    - london
+
+  # Versión GRUESA de lo anterior, para pedirle a las plataformas grandes
+  # (Workday, Oracle) que devuelvan solo tu región. Tiene que ser MÁS AMPLIA
+  # que la lista de arriba, nunca más estricta. Déjala vacía si no la necesitas.
+  ubicaciones_origen:
+    - united kingdom
+    - uk
+    - gb
+    - england
+    - scotland
+    - wales
+    - northern ireland
+    - london
+
+  # TÍTULOS QUE QUIERES — coincidencia por PREFIJO DE PALABRA.
+  # "partnership" encuentra "Partnerships"; "ops" encuentra "Operations".
+  # Empieza con pocos y ve ampliando: es más fácil añadir que limpiar.
+  titulos_incluir:
+    - strategy
+    - strategic
+    - operations
+    - ops
+    - business development
+    - partnership
+    - commercial
+    - growth
+    - expansion
+    - chief of staff
+
+  # PRÁCTICAS: si una vacante es de prácticas, solo pasa si además menciona
+  # alguno de estos términos. Lista vacía = aceptar cualquier práctica.
+  practicas_requieren:
+    - mba
+
+  # Marca una vacante como práctica. No descarta: decide en qué sección del
+  # correo aparece, separada de los puestos full time.
+  titulos_practicas:
+    - intern
+    - internship
+    - graduate
+    - apprentice
+    - placement
+    - working student
+    - summer associate
+
+  # TÍTULOS QUE NO QUIERES — tienen PRIORIDAD sobre la lista de arriba.
+  # Esta lista crece sola con el uso: cada vez que llegue algo irrelevante,
+  # mira la línea "matched:" del correo y añade el término culpable aquí.
+  titulos_excluir:
+    - junior
+    - entry level
+    - engineer
+    - engineering
+    - software
+    - developer
+    - designer
+    - data scientist
+    - recruiter
+    - talent acquisition
+    - customer support
+    - customer service
+
+
+# ============================================================================
+#  PRUEBAS — casos que fijan tu política de filtros.
+#
+#  Corre `python3 radar.py --test` después de editar los filtros: no toca la
+#  red y te dice en un segundo si rompiste algo. Añade un caso cada vez que
+#  descubras un error del filtro; así no vuelve a colarse.
+# ============================================================================
+
+pruebas:
+  - {titulo: "Senior Manager, Operations Strategy", ubicacion: "UK - London", espera: true}
+  - {titulo: "Head of Partnerships, EMEA",          ubicacion: "London",       espera: true}
+  - {titulo: "Chief of Staff",                      ubicacion: "London, UK",   espera: true}
+  # la trampa clásica: "uk" como subcadena coincide con "Ukraine"
+  - {titulo: "Strategy Manager",                    ubicacion: "Kyiv, Ukraine", espera: false}
+  - {titulo: "Commercial Director",                 ubicacion: "Singapore",     espera: false}
+  - {titulo: "Growth Engineer",                     ubicacion: "London",        espera: false}
+  - {titulo: "Junior Operations Associate",         ubicacion: "London",        espera: false}
+  # prácticas: solo las de MBA
+  - {titulo: "MBA Summer Internship, Strategy",     ubicacion: "London",        espera: true}
+  - {titulo: "Operations Intern",                   ubicacion: "London",        espera: false}
+
+
+# ============================================================================
+#  OPCIONES
+# ============================================================================
+
+opciones:
+  # TU usuario de GitHub, sin la arroba. Las menciones siempre generan correo,
+  # sin depender de la configuración de notificaciones del repositorio.
+  notificar_a: TU-USUARIO-DE-GITHUB
+
+  # Mandar el correo aunque no haya novedades, para que el silencio nunca sea
+  # ambiguo:  siempre | manana | nunca
+  avisar_sin_novedades: manana
+
+  timeout_segundos: 30
+  limite_segundos_por_fuente: 150
+  alerta_caida_pct: 70
+  max_paginas: 300

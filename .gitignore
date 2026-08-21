@@ -1,0 +1,8 @@
+# El reporte se regenera en cada corrida; no hace falta versionarlo.
+report.md
+
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
+state.json

@@ -1,0 +1,113 @@
+name: Radar de vacantes
+
+on:
+  schedule:
+    # 07:00, 11:00 y 18:00 hora de Londres, lunes a viernes.
+    #
+    # GitHub programa en UTC. Londres es UTC+1 en verano (BST) y UTC+0 en
+    # invierno (GMT); estos horarios están calibrados para el verano, así que
+    # en invierno caen una hora antes (06:00, 10:00 y 17:00 de Londres). No
+    # vale la pena complicarse: una hora en una alerta de vacantes no cambia
+    # nada.
+    #
+    # Los minutos :55 no son capricho: GitHub encola las tareas programadas y
+    # la hora en punto es el peor momento posible, porque es cuando programa
+    # todo el mundo. Correr a :55 reduce mucho el retraso.
+    - cron: "55 5,9,16 * * 1-5"   # 06:55, 10:55 y 17:55 de Londres
+    # Resumen semanal, lunes ~08:55 de Londres: todo lo que está abierto,
+    # no solo lo nuevo. Llega siempre, para que el silencio no sea ambiguo.
+    - cron: "55 7 * * 1"
+  workflow_dispatch:
+    inputs:
+      modo:
+        description: "Modo de ejecución"
+        type: choice
+        default: normal
+        options: [normal, check, prueba, semanal, reset]
+
+permissions:
+  contents: write   # para commitear state.json
+  issues: write     # para abrir el issue que dispara el correo
+
+concurrency:
+  group: radar
+  cancel-in-progress: false
+
+jobs:
+  radar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        run: pip install --quiet -r requirements.txt
+
+      - name: Correr el radar
+        id: radar
+        env:
+          # Lo usa la opción avisar_sin_novedades: manana
+          RADAR_PRIMERA_DEL_DIA: ${{ github.event.schedule == '55 5 * * 1-5' }}
+        run: |
+          # A mano manda `inputs.modo`. Por horario, el cron del lunes dispara
+          # el resumen semanal y los demás la corrida normal.
+          case "${{ inputs.modo || (github.event.schedule == '55 7 * * 1' && 'semanal' || 'normal') }}" in
+            check)   python radar.py --check ;;
+            prueba)  python radar.py --demo ;;
+            semanal) python radar.py --weekly ;;
+            reset)   python radar.py --reset ;;
+            *)       python radar.py ;;
+          esac
+
+      - name: Abrir issue con las novedades
+        if: steps.radar.outputs.has_report == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "${{ steps.radar.outputs.title }}" \
+            --body-file report.md
+
+      - name: Guardar el estado
+        # El estado va commiteado, no en el caché de Actions: el caché expira a
+        # los 7 días y perderlo significa recibir el catálogo entero como
+        # novedad. De paso, commitear en cada corrida mantiene el repo activo y
+        # evita que GitHub desactive los workflows programados a los 60 días.
+        run: |
+          set -euo pipefail
+          if [[ -z "$(git status --porcelain state.json)" ]]; then
+            echo "Sin cambios en el estado."
+            exit 0
+          fi
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          cp state.json /tmp/state.nuevo.json
+
+          # Si alguien empujó al repo mientras corríamos (un push desde GitHub
+          # Desktop, una edición por la web), el push se rechaza. En vez de
+          # fallar, nos reposicionamos sobre lo último del remoto y volvemos a
+          # aplicar NUESTRO state.json: es el que acabamos de calcular contra
+          # los datos en vivo, así que siempre gana. Sin rebase ni conflictos.
+          for intento in 1 2 3; do
+            git add state.json
+            git commit -q -m "estado: $(date -u +'%Y-%m-%d %H:%M UTC')" || true
+            if git push -q; then
+              echo "Estado guardado (intento $intento)."
+              exit 0
+            fi
+            echo "Push rechazado, el remoto avanzó. Reintento $intento…"
+            git fetch -q origin main
+            git reset -q --hard origin/main
+            cp /tmp/state.nuevo.json state.json
+            if [[ -z "$(git status --porcelain state.json)" ]]; then
+              echo "El remoto ya tiene este estado."
+              exit 0
+            fi
+          done
+
+          echo "::error::No se pudo guardar el estado después de 3 intentos."
+          exit 1
