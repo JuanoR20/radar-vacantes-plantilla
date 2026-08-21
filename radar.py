@@ -953,9 +953,51 @@ def is_internship(job: dict, filters: dict) -> bool:
 # Configuración y estado
 # ---------------------------------------------------------------------------
 
+# El config puede escribirse en inglés o en español. El código trabaja con los
+# nombres en español, así que lo primero que se hace es traducir las claves
+# inglesas. Existe para que el proyecto se pueda compartir con gente que no
+# habla español sin mantener dos versiones del código.
+ALIAS = {
+    "companies": "empresas",
+    "filters": "filtros",
+    "options": "opciones",
+    "tests": "pruebas",
+    "name": "nombre",
+    "platform": "plataforma",
+    "active": "activa",
+    "domain": "dominio",
+    "country": "pais",
+    "allow_empty": "permitir_vacia",
+    "locations_include": "ubicaciones_incluir",
+    "locations_source": "ubicaciones_origen",
+    "titles_include": "titulos_incluir",
+    "titles_exclude": "titulos_excluir",
+    "titles_internship": "titulos_practicas",
+    "internships_require": "practicas_requieren",
+    "notify": "notificar_a",
+    "notify_when_nothing_new": "avisar_sin_novedades",
+    "timeout_seconds": "timeout_segundos",
+    "source_time_limit_seconds": "limite_segundos_por_fuente",
+    "drop_alert_pct": "alerta_caida_pct",
+    "max_pages": "max_paginas",
+    "title": "titulo",
+    "location": "ubicacion",
+    "expect": "espera",
+}
+
+
+def _traducir(dato):
+    """Recorre el config y renombra a español cualquier clave escrita en inglés."""
+    if isinstance(dato, dict):
+        return {ALIAS.get(k, k): _traducir(v) for k, v in dato.items()}
+    if isinstance(dato, list):
+        return [_traducir(x) for x in dato]
+    return dato
+
+
 def load_config() -> dict:
     with open(CONFIG_PATH, encoding="utf-8") as handle:
-        config = yaml.safe_load(handle) or {}
+        config = _traducir(yaml.safe_load(handle) or {})
 
     filters = config.get("filtros") or {}
     for key in (
@@ -1272,7 +1314,7 @@ def emit_outputs(pairs: dict[str, str]) -> None:
 def run_check(config: dict) -> int:
     """Diagnóstico: consulta todo, imprime la tabla, no guarda nada."""
     results = collect(config)
-    print(f"{'FUENTE':<16} {'PLATAFORMA':<12} {'TOTAL':>7} {'PASAN':>7}  ESTADO")
+    print(f"{'SOURCE':<16} {'PLATFORM':<12} {'TOTAL':>7} {'MATCH':>7}  STATUS")
     print("-" * 68)
 
     failed = False
@@ -1295,15 +1337,15 @@ def run_check(config: dict) -> int:
     passing = [
         j for r in results for j in r["jobs"] if passes_filters(j, config["filters"])
     ]
-    for label, wanted in (("FULL TIME", False), ("PRÁCTICAS / INTERNSHIPS", True)):
+    for label, wanted in (("FULL-TIME", False), ("INTERNSHIPS", True)):
         grupo = [j for j in passing if is_internship(j, config["filters"]) == wanted]
         print(f"\n{label} ({len(grupo)}):")
         for job in grupo:
             print(f"  [{job['company']}] {job['title']} — {job['location']}")
         if not grupo:
-            print("  (ninguno)")
+            print("  (none)")
 
-    print("\nModo diagnóstico: no se guardó nada.")
+    print("\nDry run: nothing was saved.")
     return 1 if failed else 0
 
 
@@ -1332,12 +1374,12 @@ HUELLAS = [
 # Plataformas que se investigaron y no exponen datos legibles. Reconocerlas
 # ahorra el rato de intentarlo.
 SIN_SALIDA = {
-    "jobs.deel.com": "Deel: sin API, los puestos van dentro del HTML de Next.js",
-    "applytojob.com": "JazzHR: sin feed JSON ni RSS",
-    "join.com": "join.com: su API pide un id numérico de empresa que no publica",
-    "csod.com": "Cornerstone: su API devuelve 401 sin autenticación",
-    "careers.hibob.com": "HiBob: aplicación Angular, su /api responde 406",
-    "factorialhr.com": "Factorial HR: sin API ni datos embebidos",
+    "jobs.deel.com": "Deel: no API; the jobs live inside server-rendered HTML",
+    "applytojob.com": "JazzHR: no JSON or RSS feed",
+    "join.com": "join.com: its API needs a numeric company id it never publishes",
+    "csod.com": "Cornerstone: its API returns 401 without a login",
+    "careers.hibob.com": "HiBob: single-page app; everything under /api returns 406",
+    "factorialhr.com": "Factorial HR: no API and no embedded data",
 }
 
 
@@ -1351,7 +1393,7 @@ def run_discover(config: dict, url: str) -> int:
     porque un identificador equivocado puede dar con el board de otra empresa
     y verse perfectamente sano (pasó con "primer", que es un colegio de EE.UU.).
     """
-    print(f"Mirando {url} …\n")
+    print(f"Looking at {url} …\n")
     try:
         request = urllib.request.Request(
             url,
@@ -1368,14 +1410,14 @@ def run_discover(config: dict, url: str) -> int:
         with urllib.request.urlopen(request, timeout=config["options"]["timeout"], context=_SSL) as r:
             html = r.read().decode("utf-8", errors="ignore")
     except Exception as error:  # noqa: BLE001
-        print(f"No se pudo leer la página: {type(error).__name__}: {error}")
-        print("Si devuelve 403, el sitio bloquea peticiones automatizadas y no hay nada que hacer.")
+        print(f"Could not read the page: {type(error).__name__}: {error}")
+        print("A 403 means the site blocks automated requests. Nothing to be done there.")
         return 1
 
     for marca, motivo in SIN_SALIDA.items():
         if marca in html:
-            print(f"⚠️  Esta empresa usa una plataforma que NO se puede leer.\n    {motivo}")
-            print("    Lo sensato es suscribirse a la alerta nativa de su portal.")
+            print(f"⚠️  This company uses a platform that CANNOT be read.\n    {motivo}")
+            print("    Sign up for the job alert on their own careers page instead.")
             return 1
 
     encontrados = []
@@ -1384,8 +1426,8 @@ def run_discover(config: dict, url: str) -> int:
             encontrados.append((plataforma, grupos if isinstance(grupos, tuple) else (grupos,)))
 
     if not encontrados:
-        print("No reconocí ninguna plataforma en el HTML.")
-        print("Abre un puesto concreto y prueba con ESA url: el enlace de 'Apply' suele delatarla.")
+        print("No known platform found on this page.")
+        print("Open one job posting and try THAT url: the Apply link usually gives it away.")
         return 1
 
     vistos = set()
@@ -1395,16 +1437,16 @@ def run_discover(config: dict, url: str) -> int:
         vistos.add((plataforma, grupos))
 
         if plataforma == "workday":
-            lineas = f"    plataforma: workday\n    tenant: {grupos[0]}\n    pod: {grupos[1]}\n    site: {grupos[2]}"
+            lineas = f"    platform: workday\n    tenant: {grupos[0]}\n    pod: {grupos[1]}\n    site: {grupos[2]}"
             empresa = {"id": "x", "plataforma": "workday", "tenant": grupos[0], "pod": grupos[1], "site": grupos[2]}
         elif plataforma == "oracle":
-            lineas = f"    plataforma: oracle\n    host: {grupos[0]}\n    site: {grupos[1]}"
+            lineas = f"    platform: oracle\n    host: {grupos[0]}\n    site: {grupos[1]}"
             empresa = {"id": "x", "plataforma": "oracle", "host": grupos[0], "site": grupos[1]}
         elif plataforma == "eightfold":
-            lineas = f"    plataforma: eightfold\n    tenant: {grupos[0]}\n    dominio: {grupos[0]}.com"
+            lineas = f"    platform: eightfold\n    tenant: {grupos[0]}\n    domain: {grupos[0]}.com"
             empresa = {"id": "x", "plataforma": "eightfold", "tenant": grupos[0], "dominio": f"{grupos[0]}.com"}
         else:
-            lineas = f"    plataforma: {plataforma}\n    board: {grupos[0]}"
+            lineas = f"    platform: {plataforma}\n    board: {grupos[0]}"
             empresa = {"id": "x", "plataforma": plataforma, "board": grupos[0]}
 
         print(f"── {plataforma} ──")
@@ -1412,12 +1454,12 @@ def run_discover(config: dict, url: str) -> int:
         try:
             puestos = ADAPTERS[plataforma](empresa, config["options"])
             muestra = " · ".join(j["title"][:38] for j in puestos[:2])
-            print(f"    ✓ verificado: {len(puestos)} puestos → {muestra}")
-            print("      Lee esos títulos: si no parecen de esta empresa, el identificador está mal.\n")
+            print(f"    ✓ verified: {len(puestos)} roles → {muestra}")
+            print("      Read those titles. If they do not look like this company, the id is wrong.\n")
         except Exception as error:  # noqa: BLE001
-            print(f"    ✗ no respondió ({type(error).__name__}); probablemente no sea el correcto\n")
+            print(f"    ✗ no response ({type(error).__name__}); probably not the right one\n")
 
-    print("Copia el bloque que verificó bien en config.yaml, con su 'id' y 'nombre'.")
+    print("Copy the block that verified into config.yaml, adding its id and name.")
     return 0
 
 
@@ -1451,7 +1493,7 @@ def run_demo(config: dict) -> int:
 
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
     emit_outputs({"has_report": "true", "title": f"🧪 Radar test — {stamp} UTC"})
-    print(f"Prueba armada con {len(examples)} puesto(s) de ejemplo. No se guardó nada.")
+    print(f"Test alert built from {len(examples)} sample role(s). Nothing was saved.")
     return 0
 
 
@@ -1491,7 +1533,7 @@ def run_weekly(config: dict) -> int:
             "title": f"📋 Weekly digest — {len(abiertos)} open role(s) · {stamp}",
         }
     )
-    print(f"Resumen semanal: {len(abiertos)} puesto(s) abierto(s). No se guardó nada.")
+    print(f"Weekly digest: {len(abiertos)} open role(s). Nothing was saved.")
     return 0
 
 
@@ -1529,16 +1571,16 @@ def run_normal(config: dict, reset: bool) -> int:
         # Línea base: se registra todo el catálogo y no se notifica nada.
         # Sin esto, la primera corrida mandaría cientos de "novedades".
         save_state(state)
-        print(f"Línea base registrada: {len(state['jobs'])} puestos en {len(state['sources'])} fuentes.")
+        print(f"Baseline recorded: {len(state['jobs'])} roles across {len(state['sources'])} sources.")
         for problem in problems:
-            print(f"  aviso: {problem}")
+            print(f"  warning: {problem}")
         emit_outputs({"has_report": "false"})
         return 0
 
     matches = [j for j in new_jobs if passes_filters(j, config["filters"])]
     save_state(state)
 
-    print(f"Nuevos: {len(new_jobs)} | pasan filtros: {len(matches)} | problemas: {len(problems)}")
+    print(f"New: {len(new_jobs)} | matching your filters: {len(matches)} | problems: {len(problems)}")
 
     if not matches and not problems and not _avisar_sin_novedades(config):
         emit_outputs({"has_report": "false"})
@@ -1569,7 +1611,7 @@ def run_normal(config: dict, reset: bool) -> int:
             "title": f"{title} — {datetime.now(timezone.utc).strftime('%Y-%m-%d')}",
         }
     )
-    print(f"\nReporte escrito en {REPORT_PATH}")
+    print(f"\nReport written to {REPORT_PATH}")
     return 0
 
 
@@ -1660,33 +1702,34 @@ def run_test(config: dict) -> int:
         actual = passes_filters(job, filters)
         if actual != expected:
             failures += 1
-            print(f"FALLA  {title!r} @ {location!r}: esperaba {expected}, dio {actual}")
+            print(f"FAIL   {title!r} @ {location!r}: expected {expected}, got {actual}")
         else:
             if not actual:
-                etiqueta = "filtra    "
+                etiqueta = "excluded  "
             elif is_internship(job, filters):
-                etiqueta = "práctica  "
+                etiqueta = "internship"
             else:
-                etiqueta = "full time "
+                etiqueta = "full-time "
             print(f"ok     [{etiqueta}] {title} — {location}")
 
-    print(f"\n{len(casos) - failures}/{len(casos)} casos correctos.")
+    print(f"\n{len(casos) - failures}/{len(casos)} cases correct.")
     return 1 if failures else 0
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Radar de vacantes")
+    parser = argparse.ArgumentParser(description="Job radar")
     group = parser.add_mutually_exclusive_group()
-    group.add_argument("--check", action="store_true", help="diagnóstico, no guarda nada")
-    group.add_argument("--demo", action="store_true", help="aviso de prueba, no guarda nada")
+    group.add_argument("--check", action="store_true", help="dry run: check every source, save nothing")
+    group.add_argument("--demo", action="store_true", help="send a sample alert, save nothing")
     group.add_argument(
-        "--weekly", action="store_true", help="resumen semanal de todo lo abierto"
+        "--weekly", action="store_true", help="weekly digest of everything currently open"
     )
     group.add_argument(
-        "--descubrir", metavar="URL", help="dice qué plataforma usa una página de carreras"
+        "--discover", "--descubrir", metavar="URL", dest="discover",
+        help="find out which platform a careers page uses",
     )
-    group.add_argument("--reset", action="store_true", help="borra el estado y re-marca la línea base")
-    group.add_argument("--test", action="store_true", help="auto-test de los filtros, sin red")
+    group.add_argument("--reset", action="store_true", help="wipe the state and record a fresh baseline")
+    group.add_argument("--test", action="store_true", help="check your filters against your test cases, offline")
     args = parser.parse_args()
 
     config = load_config()
@@ -1698,8 +1741,8 @@ def main() -> int:
         return run_demo(config)
     if args.weekly:
         return run_weekly(config)
-    if args.descubrir:
-        return run_discover(config, args.descubrir)
+    if args.discover:
+        return run_discover(config, args.discover)
     return run_normal(config, reset=args.reset)
 
 

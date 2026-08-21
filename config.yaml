@@ -1,74 +1,90 @@
 # ============================================================================
-#  PLANTILLA — copia este archivo sobre config.yaml y edítalo.
+#  This is the only file you need to edit. The code never changes.
 #
-#      cp config.ejemplo.yaml config.yaml
+#  Three things to set up:
+#    1. companies  — whose careers pages to watch
+#    2. filters    — which roles you care about
+#    3. options    — your GitHub username, so the email reaches you
 #
-#  Solo hay que tocar tres cosas: tu usuario de GitHub, tus empresas y tus
-#  filtros. El código no se toca nunca.
+#  Everything below ships as a working example: two real companies and a set
+#  of filters for strategy and operations roles in the UK. Run it as-is first
+#  to see it work, then replace it with your own.
 # ============================================================================
 
-empresas:
+companies:
 
-  # ---- CÓMO AVERIGUAR ESTAS LÍNEAS -----------------------------------------
+  # ---- HOW TO FILL THIS IN --------------------------------------------------
   #
-  # No las adivines. Pásale al radar la página de carreras de la empresa:
+  # Don't guess these values. Ask the radar:
   #
-  #     python3 radar.py --descubrir https://www.empresa.com/careers
+  #     python3 radar.py --discover https://www.somecompany.com/careers
   #
-  # Te dice qué plataforma usa, verifica que responda e imprime dos títulos de
-  # ejemplo. LEE ESOS TÍTULOS: si no parecen de esa empresa, el identificador
-  # está mal. Un identificador equivocado puede dar con el board de OTRA
-  # empresa y verse perfectamente sano.
+  # It tells you which platform the company uses, prints the exact lines to
+  # paste here, checks that the connection works, and shows two sample job
+  # titles.
   #
-  # Si la empresa no expone datos legibles, el comando te lo dice y te ahorra
-  # la tarde. Para esas, suscríbete a la alerta de su propio portal.
+  # READ THOSE TITLES. If they don't look like they belong to that company,
+  # the id is wrong. A wrong id can quietly point at a different company's
+  # job board and still look perfectly healthy.
+  #
+  # If a company uses a platform that can't be read, the command says so and
+  # saves you the afternoon. For those, sign up for the job alert on their
+  # own careers page instead.
   # --------------------------------------------------------------------------
 
-  - id: monzo                 # identificador interno; no lo cambies después
-    nombre: Monzo             # el nombre que verás en el correo
-    plataforma: greenhouse
+  - id: monzo                 # internal name; don't change it later
+    name: Monzo               # the name you'll see in the email
+    platform: greenhouse
     board: monzo
-    activa: true
+    active: true
 
   - id: airwallex
-    nombre: Airwallex
-    plataforma: ashby
+    name: Airwallex
+    platform: ashby
     board: airwallex
-    activa: true
+    active: true
 
-  # Ejemplo de una plataforma con más datos (lo imprime --descubrir):
+  # Some platforms need a few more lines. --discover prints whichever apply:
+  #
   # - id: remitly
-  #   nombre: Remitly
-  #   plataforma: workday
+  #   name: Remitly
+  #   platform: workday
   #   tenant: remitly
   #   pod: wd5
   #   site: Remitly_Careers
-  #   activa: true
-
-  # Si un board existe pero hoy no tiene ninguna vacante, añádele
-  # `permitir_vacia: true` para que no avise "0 puestos" en cada corrida.
+  #   active: true
+  #
+  # If a company's job board is real but currently has no openings, add
+  # `allow_empty: true` so it doesn't report "0 roles" on every run.
 
 
 # ============================================================================
-#  FILTROS — se aplican solo al armar el correo, nunca al guardar.
-#  Cambiarlos es gratis: no genera avisos retroactivos de puestos viejos.
-#  Una lista vacía ([]) significa "no filtrar por esto".
+#  FILTERS
+#
+#  Filters decide what goes in the email. They never decide what gets saved,
+#  so widening them later won't flood you with months-old jobs.
+#
+#  An empty list ([]) means "don't filter on this at all".
 # ============================================================================
 
-filtros:
+filters:
 
-  # UBICACIONES — coincidencia por PALABRA COMPLETA.
-  # Por eso "uk" no coincide con "Ukraine". Adapta esto a tu país.
-  ubicaciones_incluir:
+  # WHERE YOU WANT TO WORK — matched as whole words.
+  # Whole words matter: as a substring, "uk" also matches "Ukraine", so a job
+  # in Kyiv would look British. Replace these with your own country and cities.
+  locations_include:
     - united kingdom
     - uk
     - gb
     - london
 
-  # Versión GRUESA de lo anterior, para pedirle a las plataformas grandes
-  # (Workday, Oracle) que devuelvan solo tu región. Tiene que ser MÁS AMPLIA
-  # que la lista de arriba, nunca más estricta. Déjala vacía si no la necesitas.
-  ubicaciones_origen:
+  # A WIDER version of the list above, used only to ask big employers to send
+  # back just your region instead of their whole global catalogue. It saves a
+  # lot of time on companies with thousands of openings.
+  #
+  # It must be WIDER than the list above, never narrower — it casts the net,
+  # and the precise filtering happens afterwards. Leave it empty to skip this.
+  locations_source:
     - united kingdom
     - uk
     - gb
@@ -78,10 +94,13 @@ filtros:
     - northern ireland
     - london
 
-  # TÍTULOS QUE QUIERES — coincidencia por PREFIJO DE PALABRA.
-  # "partnership" encuentra "Partnerships"; "ops" encuentra "Operations".
-  # Empieza con pocos y ve ampliando: es más fácil añadir que limpiar.
-  titulos_incluir:
+  # ROLES YOU WANT — matched from the start of a word.
+  # "partnership" finds "Partnerships"; "ops" finds "Operations".
+  #
+  # Start with a handful and add more as you go. It's much easier to widen a
+  # list than to clean up a flood. These examples are strategy and operations
+  # roles — replace them with whatever you're actually looking for.
+  titles_include:
     - strategy
     - strategic
     - operations
@@ -93,26 +112,11 @@ filtros:
     - expansion
     - chief of staff
 
-  # PRÁCTICAS: si una vacante es de prácticas, solo pasa si además menciona
-  # alguno de estos términos. Lista vacía = aceptar cualquier práctica.
-  practicas_requieren:
-    - mba
-
-  # Marca una vacante como práctica. No descarta: decide en qué sección del
-  # correo aparece, separada de los puestos full time.
-  titulos_practicas:
-    - intern
-    - internship
-    - graduate
-    - apprentice
-    - placement
-    - working student
-    - summer associate
-
-  # TÍTULOS QUE NO QUIERES — tienen PRIORIDAD sobre la lista de arriba.
-  # Esta lista crece sola con el uso: cada vez que llegue algo irrelevante,
-  # mira la línea "matched:" del correo y añade el término culpable aquí.
-  titulos_excluir:
+  # ROLES YOU DON'T WANT — these win over the list above.
+  #
+  # This list grows naturally with use. Every time something irrelevant shows
+  # up, look at the "matched:" line in the email, and add the guilty word here.
+  titles_exclude:
     - junior
     - entry level
     - engineer
@@ -126,43 +130,69 @@ filtros:
     - customer support
     - customer service
 
+  # Words that mark a job as an internship. This doesn't throw anything away —
+  # it just keeps internships in their own section of the email, separate from
+  # the full-time roles.
+  titles_internship:
+    - intern
+    - internship
+    - graduate
+    - apprentice
+    - placement
+    - working student
+    - summer associate
+
+  # If a job is an internship, it only gets through when it also mentions one
+  # of these. Useful when you only want a specific kind — MBA internships, for
+  # instance. Leave the list empty to accept any internship.
+  internships_require:
+    - mba
+
 
 # ============================================================================
-#  PRUEBAS — casos que fijan tu política de filtros.
+#  TEST CASES
 #
-#  Corre `python3 radar.py --test` después de editar los filtros: no toca la
-#  red y te dice en un segundo si rompiste algo. Añade un caso cada vez que
-#  descubras un error del filtro; así no vuelve a colarse.
+#  Made-up job titles and the answer you expect. Run this after changing your
+#  filters — it takes a second and never touches the internet:
+#
+#      python3 radar.py --test
+#
+#  Add a case whenever you spot a filtering mistake, so it can't come back.
 # ============================================================================
 
-pruebas:
-  - {titulo: "Senior Manager, Operations Strategy", ubicacion: "UK - London", espera: true}
-  - {titulo: "Head of Partnerships, EMEA",          ubicacion: "London",       espera: true}
-  - {titulo: "Chief of Staff",                      ubicacion: "London, UK",   espera: true}
-  # la trampa clásica: "uk" como subcadena coincide con "Ukraine"
-  - {titulo: "Strategy Manager",                    ubicacion: "Kyiv, Ukraine", espera: false}
-  - {titulo: "Commercial Director",                 ubicacion: "Singapore",     espera: false}
-  - {titulo: "Growth Engineer",                     ubicacion: "London",        espera: false}
-  - {titulo: "Junior Operations Associate",         ubicacion: "London",        espera: false}
-  # prácticas: solo las de MBA
-  - {titulo: "MBA Summer Internship, Strategy",     ubicacion: "London",        espera: true}
-  - {titulo: "Operations Intern",                   ubicacion: "London",        espera: false}
+tests:
+  - {title: "Senior Manager, Operations Strategy", location: "UK - London",    expect: true}
+  - {title: "Head of Partnerships, EMEA",          location: "London",         expect: true}
+  - {title: "Chief of Staff",                      location: "London, UK",     expect: true}
+  # the classic trap: as a substring, "uk" also matches "Ukraine"
+  - {title: "Strategy Manager",                    location: "Kyiv, Ukraine",  expect: false}
+  - {title: "Commercial Director",                 location: "Singapore",      expect: false}
+  - {title: "Growth Engineer",                     location: "London",         expect: false}
+  - {title: "Junior Operations Associate",         location: "London",         expect: false}
+  # internships: only the MBA ones
+  - {title: "MBA Summer Internship, Strategy",     location: "London",         expect: true}
+  - {title: "Operations Intern",                   location: "London",         expect: false}
 
 
 # ============================================================================
-#  OPCIONES
+#  OPTIONS
 # ============================================================================
 
-opciones:
-  # TU usuario de GitHub, sin la arroba. Las menciones siempre generan correo,
-  # sin depender de la configuración de notificaciones del repositorio.
-  notificar_a: TU-USUARIO-DE-GITHUB
+options:
+  # YOUR GitHub username, without the @. The radar mentions you in every
+  # alert, and GitHub always emails you about mentions — so this works even
+  # if your notification settings are off.
+  notify: YOUR-GITHUB-USERNAME
 
-  # Mandar el correo aunque no haya novedades, para que el silencio nunca sea
-  # ambiguo:  siempre | manana | nunca
-  avisar_sin_novedades: manana
+  # Send the email even when there's nothing new, so silence is never
+  # ambiguous. If nothing arrives, you know something broke.
+  #   always   — all three runs a day
+  #   morning  — only the first run of the day
+  #   never    — only write when there's something to say
+  notify_when_nothing_new: morning
 
-  timeout_segundos: 30
-  limite_segundos_por_fuente: 150
-  alerta_caida_pct: 70
-  max_paginas: 300
+  # Rarely worth changing.
+  timeout_seconds: 30
+  source_time_limit_seconds: 150   # cap per company, so one slow site can't stall the run
+  drop_alert_pct: 70               # warn if a source suddenly returns 70% fewer jobs
+  max_pages: 300
