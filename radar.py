@@ -27,6 +27,8 @@ import unicodedata
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
+from xml.etree import ElementTree
 
 import yaml
 
@@ -731,6 +733,43 @@ def _fecha_larga(valor: str) -> str:
         return ""
 
 
+def _teamtailor_rss(company: dict, dominio: str, options: dict) -> list[dict]:
+    """Respaldo del adaptador de Teamtailor: el mismo board, leído por RSS."""
+    url = f"https://{dominio}/jobs.rss"
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    with urllib.request.urlopen(request, timeout=options["timeout"], context=_SSL) as respuesta:
+        arbol = ElementTree.fromstring(respuesta.read())
+
+    def texto(item, etiqueta: str) -> str:
+        for hijo in item:
+            if hijo.tag.split("}")[-1] == etiqueta:
+                return (hijo.text or "").strip()
+        return ""
+
+    jobs = []
+    for item in arbol.iter("item"):
+        jobs.append(
+            make_job(
+                company,
+                texto(item, "guid"),
+                texto(item, "title"),
+                texto(item, "locations") or texto(item, "remoteStatus"),
+                texto(item, "link"),
+                _fecha_rss(texto(item, "pubDate")),
+                texto(item, "department"),
+            )
+        )
+    return jobs
+
+
+def _fecha_rss(valor: str) -> str:
+    """'Thu, 27 Aug 2026 11:29:50 +0200' → ISO-8601."""
+    try:
+        return parsedate_to_datetime(valor).astimezone(timezone.utc).isoformat()
+    except (TypeError, ValueError):
+        return ""
+
+
 def adapter_teamtailor(company: dict, options: dict) -> list[dict]:
     """
     Teamtailor. El board publica un JSON Feed en `<dominio>/jobs.json`, con la
@@ -738,8 +777,22 @@ def adapter_teamtailor(company: dict, options: dict) -> list[dict]:
     porque muchas empresas lo sirven desde su propio subdominio.
     """
     dominio = company["board"]
-    payload = fetch_json(f"https://{dominio}/jobs.json", options["timeout"])
 
+    # SE USA EL RSS, NO EL JSON. El feed /jobs.json de Teamtailor devuelve datos
+    # congelados: medido el 27 de agosto de 2026, el de Moove traía 42 puestos
+    # con fecha máxima del 24 de julio, mientras su RSS traía 33 con fecha de
+    # ese mismo día. El de Juni ni siquiera respondía (HTTP 409) pero su RSS sí.
+    #
+    # Es el peor tipo de fallo: responde 200 con datos verosímiles, así que
+    # durante un mes el radar inventó puestos cerrados y se perdió los nuevos
+    # sin dar un solo error. El JSON queda solo como respaldo por si algún día
+    # el RSS falla.
+    try:
+        return _teamtailor_rss(company, dominio, options)
+    except Exception as error:  # noqa: BLE001
+        print(f"  (teamtailor: el RSS falló con {type(error).__name__}, probando el JSON)")
+
+    payload = fetch_json(f"https://{dominio}/jobs.json", options["timeout"])
     jobs = []
     for raw in payload.get("items", []):
         ficha = raw.get("_jobposting") or {}
