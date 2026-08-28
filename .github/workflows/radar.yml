@@ -13,7 +13,19 @@ on:
     # Los minutos :55 no son capricho: GitHub encola las tareas programadas y
     # la hora en punto es el peor momento posible, porque es cuando programa
     # todo el mundo. Correr a :55 reduce mucho el retraso.
-    - cron: "55 5,9,16 * * 1-5"   # 06:55, 10:55 y 17:55 de Londres
+    #
+    # La corrida de la mañana va en su propia línea para poder identificarla:
+    # es la que manda el "latido" diario con notify_when_nothing_new: morning.
+    - cron: "55 5 * * 1-5"       # 06:55 de Londres
+    - cron: "55 9,16 * * 1-5"    # 10:55 y 17:55 de Londres
+    #
+    # Repesca ~30 min después de cada corrida. GitHub descarta tareas
+    # programadas cuando tiene mucha carga —son "best effort"—, así que en
+    # cada hueco no llega el correo. Estas corren en modo "never": solo
+    # escriben si hay algo nuevo o una fuente caída, así que en un día normal
+    # —cuando la corrida principal sí salió— no mandan nada.
+    - cron: "25 6,10,17 * * 1-5"
+    #
     # Resumen semanal, lunes ~08:55 de Londres: todo lo que está abierto,
     # no solo lo nuevo. Llega siempre, para que el silencio no sea ambiguo.
     - cron: "55 7 * * 1"
@@ -49,8 +61,11 @@ jobs:
       - name: Correr el radar
         id: radar
         env:
-          # Lo usa la opción avisar_sin_novedades: manana
+          # Lo usa la opción notify_when_nothing_new: morning
           RADAR_PRIMERA_DEL_DIA: ${{ github.event.schedule == '55 5 * * 1-5' }}
+          # Las corridas de repesca solo hablan si hay novedad, para no
+          # duplicar el aviso cuando la corrida principal ya salió.
+          RADAR_AVISAR_SIN_NOVEDADES: ${{ github.event.schedule == '25 6,10,17 * * 1-5' && 'never' || '' }}
         run: |
           # A mano manda `inputs.modo`. Por horario, el cron del lunes dispara
           # el resumen semanal y los demás la corrida normal.

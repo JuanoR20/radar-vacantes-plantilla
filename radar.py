@@ -1078,6 +1078,21 @@ def load_config() -> dict:
         "max_pages": int(raw_options.get("max_paginas", 300)),
     }
 
+    # El config de ejemplo trae las etiquetas en inglés (always / morning /
+    # never); adentro el código trabaja con siempre / manana / nunca.
+    _ALIAS_AVISO = {"always": "siempre", "morning": "manana", "never": "nunca"}
+    options["avisar_sin_novedades"] = _ALIAS_AVISO.get(
+        options["avisar_sin_novedades"], options["avisar_sin_novedades"]
+    )
+
+    # El workflow puede forzar el modo por corrida, sin tocar el config. Lo
+    # usan las corridas de repesca: corren en "never" para no duplicar el
+    # correo cuando la corrida principal sí salió.
+    override = os.environ.get("RADAR_AVISAR_SIN_NOVEDADES", "").strip().lower()
+    override = _ALIAS_AVISO.get(override, override)
+    if override in ("siempre", "manana", "nunca"):
+        options["avisar_sin_novedades"] = override
+
     # Casos de prueba propios, si el config los trae.
     pruebas = [
         (str(c.get("titulo", "")), str(c.get("ubicacion", "")), bool(c.get("espera")))

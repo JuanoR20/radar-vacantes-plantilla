@@ -217,7 +217,12 @@ times are in UTC, and the odd-looking `:55` is deliberate: GitHub queues these j
 and the top of the hour is the worst possible moment because that's when everyone
 else has scheduled theirs. Running at :55 cuts the delay a lot.
 
-Scheduled runs can still be a few minutes late. That's normal, not a fault.
+Scheduled runs can still be late, and GitHub sometimes drops one entirely when it's
+under load — its scheduler is best-effort, not a guarantee. So each run has a
+back-up run ~30 minutes later (the `25 6,10,17` line). The back-ups stay quiet
+unless the main run was missed and there's something to report, so on a normal day
+they cost you nothing. No job is ever lost either way: whatever a missed run would
+have found, the next successful run reports.
 
 ---
 
