@@ -29,6 +29,13 @@ on:
     # Resumen semanal, lunes ~08:55 de Londres: todo lo que está abierto,
     # no solo lo nuevo. Llega siempre, para que el silencio no sea ambiguo.
     - cron: "55 7 * * 1"
+    #
+    # Si notas que los avisos llegan a deshoras, muy espaciados o directamente
+    # dejan de llegar por días, no es este archivo: es que el scheduler de
+    # GitHub está teniendo uno de sus episodios de mala racha (le pasa, y no
+    # siempre aparece en su página de estado). La sección "Making it reliable"
+    # del README explica cómo disparar esto desde afuera con cron-job.org, que
+    # no depende de este `schedule` para nada.
   workflow_dispatch:
     inputs:
       modo:

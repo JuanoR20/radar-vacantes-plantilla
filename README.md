@@ -224,6 +224,62 @@ unless the main run was missed and there's something to report, so on a normal d
 they cost you nothing. No job is ever lost either way: whatever a missed run would
 have found, the next successful run reports.
 
+### Making it reliable: trigger it from outside GitHub
+
+The back-up runs above help with ordinary lateness, but they don't help when
+GitHub's own scheduler has a bad stretch — and it does, sometimes for days at a
+time: instead of firing 3 times a day at the times you set, it fires once, at a
+random hour, or not at all. This isn't a one-off fluke; it's a recurring,
+industry-wide problem with GitHub Actions' `schedule` trigger that often isn't
+even visible on GitHub's own status page, so you can be stuck for a while before
+realising it's not your setup. If your alerts suddenly go quiet — or suddenly
+arrive five times in one afternoon — this is almost certainly why.
+
+The one thing that reliably works around it: an external scheduler that calls the
+`workflow_dispatch` API instead of waiting on GitHub's `schedule` queue.
+`workflow_dispatch` runs start within seconds, every time, because it's a
+different code path than the flaky one.
+
+**1. Create a token.** GitHub → your profile picture → **Settings** →
+**Developer settings** (bottom of the left sidebar) → **Personal access tokens**
+→ **Fine-grained tokens** → **Generate new token**.
+   - Give it a name and an expiration (1 year is the practical maximum)
+   - **Repository access** → **Only select repositories** → your radar's repo
+   - **Permissions** → **Repository permissions** → **Actions** → **Read and write**
+   - **Generate token**, and copy the value now — GitHub shows it only once.
+
+**2. Create a free account at [cron-job.org](https://cron-job.org).** No card
+needed.
+
+**3. Create a cronjob** with:
+   - **URL**: `https://api.github.com/repos/OWNER/REPO/actions/workflows/radar.yml/dispatches`
+     — replace `OWNER/REPO` with your own (e.g. `yourname/job-radar`)
+   - **Schedule**: custom — minutes `55`, hours `6,10,17`, weekdays Monday–Friday,
+     your own timezone
+   - **Method**: `POST`
+   - **Headers**: `Authorization: Bearer <your token>`,
+     `Accept: application/vnd.github+json`, `X-GitHub-Api-Version: 2022-11-28`,
+     `Content-Type: application/json`
+   - **Body**: `{"ref":"main"}`
+
+   Use the tool's built-in test run before saving for real — a `204 No Content`
+   response means it worked. Then check the repo's **Actions** tab: a new run
+   should appear within seconds, credited to your token's account rather than
+   labeled "Scheduled".
+
+**4. Do the same for the Monday digest**, if you use it: a second cronjob,
+   Monday only, same time slot as the `55 7 * * 1` line, with body
+   `{"ref":"main","inputs":{"modo":"semanal"}}`. Note that `modo` stays in
+   Spanish (`semanal`, not `weekly`) — it's the workflow's own internal language,
+   independent of this README. Get it wrong and nothing errors; it just quietly
+   runs the normal mode instead.
+
+**5. Once you've confirmed it works, turn GitHub's own schedule off** so the two
+   don't compete and double up your alerts: open `radar.yml` and comment out the
+   `schedule:` block, leaving `workflow_dispatch:` as the only trigger. Keep the
+   cron lines as a comment instead of deleting them — if GitHub's scheduler is
+   ever trustworthy again, re-enabling it is a one-line undo.
+
 ---
 
 ## Supported platforms
